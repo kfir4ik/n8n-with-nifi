@@ -1,0 +1,94 @@
+services:
+  # Coordination service required for NiFi Clustering
+  zookeeper:
+    image: zookeeper:3.6.1
+    restart: always
+    environment:
+      - ZOO_TICK_TIME=2000
+    # The official image defaults to port 2181 internally
+    ports:
+      - "2181:2181"
+
+  nifi-node1:
+    image: apache/nifi:1.11.4
+    restart: always
+    environment: &nifi-env
+      - NIFI_WEB_HTTP_PORT=9091
+      - NIFI_WEB_HTTP_HOST=0.0.0.0
+      - NIFI_WEB_PROXY_HOST=nifi.${DOMAIN_NAME}
+      - NIFI_CLUSTER_IS_NODE=true
+      - NIFI_CLUSTER_NODE_PROTOCOL_PORT=8082
+      - NIFI_ZK_CONNECT_STRING=zookeeper:2181
+      - NIFI_ELECTION_MAX_WAIT=1 min
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.nifi.rule=Host(`nifi.${DOMAIN_NAME}`)
+      - traefik.http.routers.nifi.entrypoints=web
+      - traefik.http.services.nifi.loadbalancer.server.port=9091
+      # Enable Sticky Sessions so the UI doesn't disconnect
+      - traefik.http.services.nifi.loadbalancer.sticky.cookie=true
+      - traefik.http.services.nifi.loadbalancer.sticky.cookie.name=nifi_session
+    volumes:
+      - nifi_data_1:/opt/nifi/nifi-current/conf
+      - ./local-files:/opt/nifi/nifi-current/local-files
+
+  nifi-node2:
+    image: apache/nifi:1.11.4
+    restart: always
+    environment: *nifi-env
+    volumes:
+      - nifi_data_2:/opt/nifi/nifi-current/conf
+      - ./local-files:/opt/nifi/nifi-current/local-files
+
+  nifi-node3:
+    image: apache/nifi:1.11.4
+    restart: always
+    environment: *nifi-env
+    volumes:
+      - nifi_data_3:/opt/nifi/nifi-current/conf
+      - ./local-files:/opt/nifi/nifi-current/local-files
+
+  traefik:
+    image: "traefik"
+    restart: always
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.mytlschallenge.acme.tlschallenge=true"
+      - "--certificatesresolvers.mytlschallenge.acme.email=${SSL_EMAIL}"
+      - "--certificatesresolvers.mytlschallenge.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "9091:9091" # Access cluster via this port if needed directly
+    volumes:
+      - traefik_data:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  n8n:
+    image: n8nio/n8n:stable
+    restart: always
+    environment:
+      - N8N_HOST=${SUBDOMAIN}.${DOMAIN_NAME}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://${SUBDOMAIN}.${DOMAIN_NAME}/
+      - NODE_ENV=production
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.n8n.rule=Host(`${SUBDOMAIN}.${DOMAIN_NAME}`)
+      - traefik.http.routers.n8n.entrypoints=websecure
+      - traefik.http.routers.n8n.tls.certresolver=mytlschallenge
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./local-files:/files
+
+volumes:
+  n8n_data:
+  traefik_data:
+  nifi_data_1:
+  nifi_data_2:
+  nifi_data_3:
