@@ -1,0 +1,128 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "minutes", "minutes": 5}]
+        }
+      },
+      "id": "trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://zookeeper:8080/commands/ruok",
+        "options": {}
+      },
+      "id": "zk-check",
+      "name": "ZooKeeper Health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "imok",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "is-zk-ok",
+      "name": "Is ZK OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://nifi-1:8080/nifi-api/flow/cluster/summary",
+        "options": {}
+      },
+      "id": "nifi-cluster-check",
+      "name": "NiFi Cluster Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [750, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.clusterSummary.connectedNodeCount }}",
+              "rightValue": 2,
+              "operator": { "type": "number", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "is-cluster-full",
+      "name": "2 Nodes Connected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [980, 400]
+    },
+    {
+      "parameters": {
+        "resource": "command",
+        "command": "docker exec nifi-node-1 bin/nifi.sh restart && docker exec nifi-node-2 bin/nifi.sh restart"
+      },
+      "id": "restart-nodes",
+      "name": "SSH Restart Nodes",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [750, 180],
+      "credentials": {
+        "sshKey": { "id": "YOUR_SSH_CRED_ID", "name": "Docker Host SSH" }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "minutes"
+      },
+      "id": "wait-node",
+      "name": "Wait 3 Minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [950, 180]
+    },
+    {
+      "parameters": {
+        "url": "http://nifi-1:8080/nifi-api/flow/process-groups/root/status?recursive=true",
+        "options": {}
+      },
+      "id": "check-queues",
+      "name": "Check Queue Sizes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1200, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "ZooKeeper Health", "type": "main", "index": 0 }]] },
+    "ZooKeeper Health": { "main": [[{ "node": "Is ZK OK?", "type": "main", "index": 0 }]] },
+    "Is ZK OK?": {
+      "main": [
+        [{ "node": "NiFi Cluster Status", "type": "main", "index": 0 }],
+        [{ "node": "restart-nodes", "type": "main", "index": 0 }]
+      ]
+    },
+    "NiFi Cluster Status": { "main": [[{ "node": "2 Nodes Connected?", "type": "main", "index": 0 }]] },
+    "2 Nodes Connected?": {
+      "main": [
+        [{ "node": "Check Queue Sizes", "type": "main", "index": 0 }],
+        [{ "node": "restart-nodes", "type": "main", "index": 0 }]
+      ]
+    },
+    "restart-nodes": { "main": [[{ "node": "Wait 3 Minutes", "type": "main", "index": 0 }]] }
+  }
+}

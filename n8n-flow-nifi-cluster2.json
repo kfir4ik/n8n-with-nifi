@@ -1,0 +1,98 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutes": 5 }]
+        }
+      },
+      "id": "trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://nifi-1:8080/nifi-api/flow/cluster/summary",
+        "options": {}
+      },
+      "id": "check-cluster",
+      "name": "Check Cluster Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [
+            {
+              "id": "check-count",
+              "leftValue": "={{ $json.clusterSummary.connectedNodeCount }}",
+              "rightValue": 2,
+              "operator": { "type": "number", "operation": "notEquals" }
+            }
+          ]
+        }
+      },
+      "id": "if-degraded",
+      "name": "Is Cluster Degraded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [540, 300]
+    },
+    {
+      "parameters": {
+        "resource": "command",
+        "command": "docker exec nifi-node-1 bin/nifi.sh restart && docker exec nifi-node-2 bin/nifi.sh restart"
+      },
+      "id": "restart-nodes",
+      "name": "SSH Restart Nodes",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [780, 200],
+      "credentials": {
+        "sshKey": { "id": "YOUR_SSH_CRED_ID", "name": "Docker Host SSH" }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "minutes"
+      },
+      "id": "wait-node",
+      "name": "Wait 3 Minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://nifi-1:8080/nifi-api/flow/process-groups/root/status",
+        "options": {
+          "queryParameters": {
+            "parameters": [{ "name": "recursive", "value": "true" }]
+          }
+        }
+      },
+      "id": "check-queues",
+      "name": "Check All Queues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [780, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Check Cluster Status", "type": "main", "index": 0 }]] },
+    "Check Cluster Status": { "main": [[{ "node": "Is Cluster Degraded?", "type": "main", "index": 0 }]] },
+    "Is Cluster Degraded?": {
+      "main": [
+        [{ "node": "restart-nodes", "type": "main", "index": 0 }],
+        [{ "node": "check-queues", "type": "main", "index": 0 }]
+      ]
+    },
+    "restart-nodes": { "main": [[{ "node": "Wait 3 Minutes", "type": "main", "index": 0 }]] }
+  }
+}
