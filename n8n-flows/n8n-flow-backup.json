@@ -1,0 +1,129 @@
+
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "76d8b2a1-1234-4abc-8def-1234567890ab",
+      "name": "When clicking \"Execute Workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "nifi_host", "value": "localhost" },
+            { "name": "nifi_port", "value": "8080" },
+            { "name": "target_pg_id", "value": "YOUR_PROCESS_GROUP_ID" },
+            { "name": "jfrog_url", "value": "https://your-instance.jfrog.io/artifactory" },
+            { "name": "jfrog_repo", "value": "generic-local-repo/nifi-backups" }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-e5f6-4a5b-bcde-fghij1234567",
+      "name": "Set Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [220, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://{{$node[\"Set Config\"].json[\"nifi_host\"]}}:{{$node[\"Set Config\"].json[\"nifi_port\"]}}/nifi-api/snippets",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"snippet\": {\n    \"parentGroupId\": \"{{$node[\"Set Config\"].json[\"target_pg_id\"]}}\",\n    \"processGroups\": {\n      \"{{$node[\"Set Config\"].json[\"target_pg_id\"]}}\": { \"revision\": { \"version\": 0 } }\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "b2c3d4e5-f6a7-4b6c-cdef-ghij12345678",
+      "name": "Create Snippet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://{{$node[\"Set Config\"].json[\"nifi_host\"]}}:{{$node[\"Set Config\"].json[\"nifi_port\"]}}/nifi-api/process-groups/{{$node[\"Set Config\"].json[\"target_pg_id\"]}}/templates",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\": \"Backup_{{$now.format('yyyy-MM-dd')}}\",\n  \"description\": \"Automated n8n Backup\",\n  \"snippetId\": \"{{$node[\"Create Snippet\"].json[\"snippet\"][\"id\"]}}\"\n}",
+        "options": {}
+      },
+      "id": "c3d4e5f6-a7b8-4c7d-defg-hijk12345678",
+      "name": "Create Template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [660, 400]
+    },
+    {
+      "parameters": {
+        "url": "=http://{{$node[\"Set Config\"].json[\"nifi_host\"]}}:{{$node[\"Set Config\"].json[\"nifi_port\"]}}/nifi-api/templates/{{$node[\"Create Template\"].json[\"template\"][\"id\"]}}/download",
+        "responseFormat": "file",
+        "options": {}
+      },
+      "id": "d4e5f6a7-b8c9-4d8e-efgh-ijkl12345678",
+      "name": "Download XML",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{$node[\"Set Config\"].json[\"jfrog_url\"]}}/{{$node[\"Set Config\"].json[\"jfrog_repo\"]}}/nifi_backup_{{$now.format('yyyy-MM-dd')}}.xml",
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {}
+      },
+      "id": "e5f6a7b8-c9d0-4e9f-fghe-jklm12345678",
+      "name": "Upload to JFrog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1100, 400]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=http://{{$node[\"Set Config\"].json[\"nifi_host\"]}}:{{$node[\"Set Config\"].json[\"nifi_port\"]}}/nifi-api/templates/{{$node[\"Create Template\"].json[\"template\"][\"id\"]}}",
+        "options": {}
+      },
+      "id": "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
+      "name": "Delete Template from NiFi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {},
+      "id": "g7h8i9j0-k1l2-4m3n-o4p5-q6r7s8t9u0v1",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [880, 640]
+    },
+    {
+      "parameters": {
+        "text": "=:warning: **NiFi Backup Failed!**\n\n**Time:** {{$now}}\n**Error:** {{$node[\"Error Trigger\"].json[\"message\"]}}",
+        "otherOptions": {}
+      },
+      "id": "h8i9j0k1-l2m3-4n4o-p5q6-r7s8t9u0v1w2",
+      "name": "Mattermost Notification",
+      "type": "n8n-nodes-base.mattermost",
+      "typeVersion": 1,
+      "position": [1100, 640]
+    }
+  ],
+  "connections": {
+    "When clicking \"Execute Workflow\"": { "main": [[{ "node": "Set Config", "index": 0 }]] },
+    "Set Config": { "main": [[{ "node": "Create Snippet", "index": 0 }]] },
+    "Create Snippet": { "main": [[{ "node": "Create Template", "index": 0 }]] },
+    "Create Template": { "main": [[{ "node": "Download XML", "index": 0 }]] },
+    "Download XML": { "main": [[{ "node": "Upload to JFrog", "index": 0 }]] },
+    "Upload to JFrog": { "main": [[{ "node": "Delete Template from NiFi", "index": 0 }]] },
+    "Error Trigger": { "main": [[{ "node": "Mattermost Notification", "index": 0 }]] }
+  }
+}
