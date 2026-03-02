@@ -1,0 +1,150 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: zookeeper:3.9
+    container_name: nifi-zookeeper
+    restart: always
+    environment:
+      - ZOO_MY_ID=1
+      - ZOO_SERVERS=server.1=zookeeper:2888:3888;2181
+    volumes:
+      - zookeeper_data:/data
+      - zookeeper_datalog:/datalog
+    networks:
+      - nifi-cluster-net
+
+  nifi-1:
+    image: apache/nifi:1.11.4
+    container_name: nifi-node-1
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - NIFI_WEB_HTTP_PORT=8080
+      - NIFI_WEB_HTTPS_PORT=""
+      - NIFI_CLUSTER_IS_NODE=true
+      - NIFI_CLUSTER_NODE_PROTOCOL_PORT=8082
+      - NIFI_CLUSTER_NODE_ADDRESS=nifi-1
+      - NIFI_ZK_CONNECT_STRING=zookeeper:2181
+      - NIFI_ELECTION_MAX_WAIT=30 sec
+      - NIFI_CLUSTER_PROTOCOL_IS_SECURE=false
+    volumes:
+      - nifi-1-conf:/opt/nifi/nifi-current/conf
+      - nifi-1-database:/opt/nifi/nifi-current/database_repository
+      - nifi-1-flowfile:/opt/nifi/nifi-current/flowfile_repository
+      - nifi-1-content:/opt/nifi/nifi-current/content_repository
+      - nifi-1-provenance:/opt/nifi/nifi-current/provenance_repository
+      - nifi-1-state:/opt/nifi/nifi-current/state
+    networks:
+      - nifi-cluster-net
+    depends_on:
+      - zookeeper
+
+  nifi-2:
+    image: apache/nifi:1.11.4
+    container_name: nifi-node-2
+    restart: always
+    ports:
+      - "8081:8080"
+    environment:
+      - NIFI_WEB_HTTP_PORT=8080
+      - NIFI_WEB_HTTPS_PORT=""
+      - NIFI_CLUSTER_IS_NODE=true
+      - NIFI_CLUSTER_NODE_PROTOCOL_PORT=8082
+      - NIFI_CLUSTER_NODE_ADDRESS=nifi-2
+      - NIFI_ZK_CONNECT_STRING=zookeeper:2181
+      - NIFI_ELECTION_MAX_WAIT=30 sec
+      - NIFI_CLUSTER_PROTOCOL_IS_SECURE=false
+    volumes:
+      - nifi-2-conf:/opt/nifi/nifi-current/conf
+      - nifi-2-database:/opt/nifi/nifi-current/database_repository
+      - nifi-2-flowfile:/opt/nifi/nifi-current/flowfile_repository
+      - nifi-2-content:/opt/nifi/nifi-current/content_repository
+      - nifi-2-provenance:/opt/nifi/nifi-current/provenance_repository
+      - nifi-2-state:/opt/nifi/nifi-current/state
+    networks:
+      - nifi-cluster-net
+    depends_on:
+      - zookeeper
+
+  traefik:
+    image: "traefik"
+    restart: always
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      # REMOVED: Global HTTP to HTTPS redirection commands
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.mytlschallenge.acme.tlschallenge=true"
+      - "--certificatesresolvers.mytlschallenge.acme.email=${SSL_EMAIL}"
+      - "--certificatesresolvers.mytlschallenge.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - traefik_data:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - nifi-cluster-net
+
+  n8n:
+    image: n8nio/n8n:stable                        
+    restart: always
+    ports:
+      - "127.0.0.1:5678:5678"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.n8n.rule=Host(`${SUBDOMAIN}.${DOMAIN_NAME}`)
+      - traefik.http.routers.n8n.tls=true
+      - traefik.http.routers.n8n.entrypoints=web,websecure
+      - traefik.http.routers.n8n.tls.certresolver=mytlschallenge
+      - traefik.http.middlewares.n8n.headers.SSLRedirect=true
+      - traefik.http.middlewares.n8n.headers.STSSeconds=315360000
+      - traefik.http.middlewares.n8n.headers.browserXSSFilter=true
+      - traefik.http.middlewares.n8n.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.n8n.headers.forceSTSHeader=true
+      - traefik.http.middlewares.n8n.headers.SSLHost=${DOMAIN_NAME}
+      - traefik.http.middlewares.n8n.headers.STSIncludeSubdomains=true
+      - traefik.http.middlewares.n8n.headers.STSPreload=true
+      - traefik.http.routers.n8n.middlewares=n8n@docker
+    environment:
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_HOST=${SUBDOMAIN}.${DOMAIN_NAME}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - N8N_RUNNERS_ENABLED=true
+      - NODE_ENV=production
+      - WEBHOOK_URL=https://${SUBDOMAIN}.${DOMAIN_NAME}/
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - TZ=${GENERIC_TIMEZONE}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./local-files:/files
+    networks:
+      - nifi-cluster-net
+      
+networks:
+  nifi-cluster-net:
+    driver: bridge
+
+# These declarations tell Docker to manage the storage outside the container lifecycle
+volumes:
+  n8n_data:
+  traefik_data:
+  zookeeper_data:
+  zookeeper_datalog:
+  nifi-1-conf:
+  nifi-1-database:
+  nifi-1-flowfile:
+  nifi-1-content:
+  nifi-1-provenance:
+  nifi-1-state:
+  nifi-2-conf:
+  nifi-2-database:
+  nifi-2-flowfile:
+  nifi-2-content:
+  nifi-2-provenance:
+  nifi-2-state:

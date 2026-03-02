@@ -1,0 +1,172 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutes": 5
+            }
+          ]
+        }
+      },
+      "id": "e55d784a-7f61-4c12-9b7e-96695393690a",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://nifi-1:8080/nifi-api/flow/cluster/summary",
+        "options": {}
+      },
+      "id": "3c7b209a-1111-4c12-9b7e-96695393690b",
+      "name": "Check Cluster Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://nifi-1:8080/nifi-api/controller/cluster",
+        "options": {}
+      },
+      "id": "4d8c310b-2222-4c12-9b7e-96695393690c",
+      "name": "Get Node Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [880, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://nifi-1:8080/nifi-api/flow/process-groups/root/status",
+        "options": {
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "recursive",
+                "value": "true"
+              }
+            ]
+          }
+        }
+      },
+      "id": "5e9d421c-3333-4c12-9b7e-96695393690d",
+      "name": "Check All Queues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "6f0e532d",
+              "leftValue": "={{ $json.clusterSummary.connectedNodeCount }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7g1f643e-4444-4c12-9b7e-96695393690e",
+      "name": "If Node Count Low",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1100, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "8h2g754f",
+              "leftValue": "={{ $json.processGroupStatus.aggregateSnapshot.flowFilesQueued }}",
+              "rightValue": 1000,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9i3h865g-5555-4c12-9b7e-96695393690f",
+      "name": "If Queues High",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1100, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Cluster Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Cluster Summary": {
+      "main": [
+        [
+          {
+            "node": "Get Node Details",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check All Queues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Node Details": {
+      "main": [
+        [
+          {
+            "node": "If Node Count Low",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check All Queues": {
+      "main": [
+        [
+          {
+            "node": "If Queues High",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -66,5 +66,3 @@ docker compose up -d
 * **Stop the Stack**: `docker compose down`
 
 ---
-
-**Would you like me to help you configure a "Wait" strategy in n8n so it only starts monitoring after NiFi has successfully finished its 3-minute boot process?**
