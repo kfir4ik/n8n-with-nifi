@@ -66,3 +66,9 @@ docker compose up -d
 * **Stop the Stack**: `docker compose down`
 
 ---
+
+### 🔧 Example: raw HTML prompt
+
+The following shows the prompt rendered as raw HTML (kept as-is):
+
+<prompt>test</prompt>
