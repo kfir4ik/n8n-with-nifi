@@ -1,0 +1,49 @@
+name: CI Deploy to Railway
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy compose-n8n.yaml to Railway
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js (for Railway CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Authenticate Railway CLI
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+        run: |
+          # The Railway CLI supports non-interactive login in CI using a token.
+          # We attempt a token-based login; update this command if your CLI version uses a different flag.
+          if [ -z "$RAILWAY_API_TOKEN" ]; then
+            echo "ERROR: RAILWAY_API_TOKEN secret is not set" >&2
+            exit 1
+          fi
+          railway login --token "$RAILWAY_API_TOKEN" || railway login --apiKey "$RAILWAY_API_TOKEN"
+
+      - name: Deploy Compose stack
+        run: |
+          # This runs `railway up` which will deploy services found in the repository.
+          # If your Railway project needs to be linked first, add `railway link <projectId>` here or ensure the project is already linked.
+          # The CLI will typically detect docker-compose files; the flag below is a conservative call — adjust if needed for your CLI version.
+          railway up -y --detach --file compose-n8n.yaml || railway up -y --detach
+
+      - name: Show Railway status
+        run: |
+          railway status || true
+
+  # Notes:
+  # - Set a repository secret named `RAILWAY_API_TOKEN` containing a Railway token with deploy permissions.
+  # - If `railway up` needs a linked project, either run `railway link` with PROJECT_ID or pre-link the repository in Railway dashboard.

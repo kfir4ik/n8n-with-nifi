@@ -72,3 +72,25 @@ docker compose up -d
 The following shows the prompt rendered as raw HTML (kept as-is):
 
 <prompt>test</prompt>
+
+---
+
+## CI: Deploy `compose-n8n.yaml` to Railway
+
+This repository includes a GitHub Actions workflow that deploys `compose-n8n.yaml` to Railway.
+
+What to set up:
+
+- Add a repository secret `RAILWAY_API_TOKEN` with a Railway token that has deploy permissions.
+- If your Railway project is not already linked to the repository, either link it via the Railway dashboard or modify the workflow to run `railway link <PROJECT_ID>` before `railway up`.
+
+How it runs:
+
+- The workflow triggers on pushes to `main` and can be run manually via "Actions" > "CI Deploy to Railway" > "Run workflow".
+- It installs the Railway CLI, logs in using the `RAILWAY_API_TOKEN` secret, then runs `railway up` against `compose-n8n.yaml`.
+
+Notes & assumptions:
+
+- The workflow assumes the Railway CLI supports `login --token` or `login --apiKey`. If your Railway CLI version requires different flags, edit `.github/workflows/deploy-railway.yml` accordingly.
+- Adjust the `railway up` command if your deployment requires additional flags or a different compose filename.
+
