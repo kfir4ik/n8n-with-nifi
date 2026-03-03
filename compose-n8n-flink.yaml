@@ -1,0 +1,50 @@
+services:
+  # Flink JobManager: The master node
+  jobmanager:
+    image: flink:1.20.3-java17
+    ports:
+      - "9091:8081"
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+    networks:
+      - n8n_flink_bridge
+
+  # Flink TaskManager: The worker node
+  taskmanager:
+    image: flink:1.20.3-java17
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+    networks:
+      - n8n_flink_bridge
+
+  # n8n Automation Tool
+  n8n:
+    image: n8nio/n8n:latest
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - n8n_flink_bridge
+
+networks:
+  n8n_flink_bridge:
+    driver: bridge
+
+volumes:
+  n8n_data:
