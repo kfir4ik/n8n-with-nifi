@@ -1,17 +1,18 @@
-jobmanager.memory.process.size: 800Mb
-jobmanager.rpc.address: jobmanager
 blob.server.port: 6124
+taskmanager.memory.process.size: 1024Mb
+heartbeat.timeout: 5000
+rest.flamegraph.enabled: true
+taskmanager.memory.network.min: 64mb
+jobmanager.rpc.address: jobmanager
+jobmanager.memory.process.size: 768Mb
+state.savepoints.dir: file:///tmp/flink-savepoints-directory
+heartbeat.interval: 1000
+web.backpressure.refresh-interval: 10000
 query.server.port: 6125
-
-taskmanager.memory.process.size: 864Mb
+taskmanager.memory.framework.off-heap.size: 64mb
+taskmanager.memory.network.max: 128mb
+taskmanager.memory.framework.heap.size: 64mb
 taskmanager.numberOfTaskSlots: 4
-
+taskmanager.memory.managed.fraction: 0.2
 state.backend: filesystem
 state.checkpoints.dir: file:///tmp/flink-checkpoints-directory
-state.savepoints.dir: file:///tmp/flink-savepoints-directory
-
-heartbeat.interval: 1000
-heartbeat.timeout: 5000
-
-rest.flamegraph.enabled: true
-web.backpressure.refresh-interval: 10000
