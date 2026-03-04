@@ -33,8 +33,9 @@ services:
     ports:
       - "5678:5678"
     environment:
-      - N8N_PORT=5678
+      - N8N_SECURE_COOKIE=false  # Set to false if you are NOT using HTTPS/SSL
       - N8N_PROTOCOL=http
+      - N8N_PORT=5678
       - NODE_ENV=production
       - WEBHOOK_URL=http://localhost:5678/
     volumes:
