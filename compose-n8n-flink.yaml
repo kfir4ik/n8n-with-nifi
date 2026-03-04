@@ -10,7 +10,7 @@ services:
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
     volumes:
-      - ./conf:/opt/flink/conf
+      #- ./conf:/opt/flink/conf
       - flink_data:/tmp/
     networks:
       - n8n_flink_bridge
@@ -27,7 +27,7 @@ services:
         jobmanager.rpc.address: jobmanager
         taskmanager.numberOfTaskSlots: 4
     volumes:
-      - ./conf:/opt/flink/conf
+      #- ./conf:/opt/flink/conf
       - flink_data:/tmp/
     networks:
       - n8n_flink_bridge
